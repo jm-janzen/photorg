@@ -57,9 +57,13 @@ def main():
     #   Reports on photo pairs found in given directory, and copy to given write path
     #
 
-    # Match up JPG:NEF files
+    # Match up JPG:NEF files, report
     photo_pairs = pd.pair_photos()
     r.write_line(f"{len(photo_pairs)} JPG to NEF file matching pair(s) found in Input Directory")
+
+    # Report on JPGs which no corresponding NEF file could be found
+    for orphan_jpg in pd.pair_photos(reverse=True):
+        r.write_line(f"WARNING: could not find NEF file for '{orphan_jpg}' !!!")
 
     prompt(msg="Ready to start copying over files",
            opts="Enter to proceed")
@@ -83,10 +87,6 @@ def main():
         shutil.copy(nef, write_dir)
         op_str = f"copied '{nef}' to '{write_dir+os.sep+nef_file_name}'"
         r.write_line(op_str)
-
-    # Report on JPGs which no corresponding NEF file could be found
-    for orphan_jpg in pd.pair_photos(reverse=True):
-        r.write_line(f"WARNING: could not find NEF file for '{orphan_jpg}' !!!")
 
     # All done - notify and exit
     prompt(msg="Done.", opts="Enter to exit")
