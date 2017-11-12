@@ -46,22 +46,23 @@ def main():
                              "out",
                              pd.root_dir.split(os.sep)[-1])
 
+    # Init our simple report class (will write operation results to this file)
+    r = Report(os.path.join(write_dir, "REPORT.log"))
+    r.write_line(f"Input  Directory: {base_read_path} (looking for pairs here)")
+    r.write_line(f"Output Directory: {write_dir} (will write pairs to here)")
+    r.write_line(f"{len(pd.jpgs)} JPEGs, {len(pd.nefs)} NEFs found in Input Directory")
+
     #
     # Step 2.
     #   Reports on photo pairs found in given directory, and copy to given write path
     #
 
-
-    # Path for report file
-    # TODO Use this
-    report_path = os.path.join(write_dir, "REPORT.log")
-
-    print(f"Will write paired files to {write_dir}")
-
     # Match up JPG:NEF files
     photo_pairs = pd.pair_photos()
+    r.write_line(f"{len(photo_pairs)} JPG to NEF file matching pair(s) found in Input Directory")
 
-    print(f"Pairs found: {photo_pairs}")
+    prompt(msg="Ready to start copying over files",
+           opts="Enter to proceed")
 
     # Create output dir if it doesn't already exist
     if not os.path.isdir(write_dir):
@@ -71,22 +72,25 @@ def main():
     # XXX Investigate: Is meta-data lost in copy operation ?
     #
     for jpg, nef in photo_pairs:
-        print(f"cp {jpg} {write_dir}")
+
+        jpg_file_name = jpg.split(os.sep)[-1]
+        nef_file_name = nef.split(os.sep)[-1]
+
         shutil.copy(jpg, write_dir)
-        print(f"cp {nef} {write_dir}")
+        op_str = f"copied '{jpg}' to '{write_dir+os.sep+jpg_file_name}'"
+        r.write_line(op_str)
+
         shutil.copy(nef, write_dir)
+        op_str = f"copied '{nef}' to '{write_dir+os.sep+nef_file_name}'"
+        r.write_line(op_str)
 
-    #
-    # TODO Write report containing:
-    #   JPG:NEF pairs copied
-    #   JPG files with no matching NEFs (important!)
-    #   NEF files with no JPGs (less important)
-    #   Any issues along the way
-    #
-
+    # Report on JPGs which no corresponding NEF file could be found
+    for orphan_jpg in pd.pair_photos(reverse=True):
+        r.write_line(f"WARNING: could not find NEF file for '{orphan_jpg}' !!!")
 
     # All done - notify and exit
     prompt(msg="Done.", opts="Enter to exit")
+    r.write_line(f"Program terminated normally\n"+("-"*80))
 
 def prompt(msg, opts, exit_after=False):
     """ Print :msg: and input :opts: to terminal, and optionally :after_after: user input received """
@@ -94,6 +98,7 @@ def prompt(msg, opts, exit_after=False):
 
     # Quit if specified in invocation, or user input
     if user_input.lower() == 'q' or exit_after:
+        print("Bye")
         exit(1)
 
     return user_input
@@ -161,8 +166,9 @@ class PhotoDrive():
         """
         return fp.split(os.sep)[-1].split('.')[0].strip("DSC_")
 
-    def pair_photos(self):
-        """ Pair JPG and NEF files, returning paths to both files """
+    def pair_photos(self, reverse=False):
+        """ Pair JPG and NEF files, returning paths to both files,
+        if :reverse: specified return all JPG files without a match instead """
         matching_pairs = []
 
         # Collect of stripped file names, and associated paths, and build
@@ -178,10 +184,41 @@ class PhotoDrive():
             jpg_file_name = jpg.split(os.sep)[-1].split('.')[0].strip("DSC_")
 
             pair = tmp_nefs.get(jpg_file_name)
-            if pair:
+
+            # Default behaviour: collect jpg:nef pairs
+            if pair and not reverse:
                 matching_pairs.append((jpg, pair))
 
+            # Just collect unmatched JPG files
+            elif not pair and reverse:
+                matching_pairs.append(jpg)
+
         return matching_pairs
+
+
+class Report():
+    def __init__(self, write_path):
+        """ XXX Just a holder class for various stats, lists
+        which we want to write out to a report """
+
+        self.write_path = write_path
+
+        # Init beginning of new entry in report file
+        self.write_line("*** NEW REPORT (" + time.strftime("%d/%m/%Y %H:%M:%S") + ") ***",
+                        verbose=0)
+
+    def write_line(self, s, verbose=1):
+        """ Write out (append) given str to own report path,
+        by default also prints to console what we are writing """
+
+        if verbose > 0:
+            print(s)
+
+        if not s.endswith('\n'):
+            s += '\n'
+
+        with open(self.write_path, 'a') as f:
+            f.write(s)
 
 class Disk():
     def __init__(self, raw_device):
