@@ -2,8 +2,13 @@ import os
 import re
 import sys
 import time
-import psutil  # TODO Install automatically, if not already present?
 import shutil
+
+try:
+    import psutil
+except ImportError():
+    print("Missing package 'psutil', install it by running",
+          "\n\t`pip install psutil` from a console, and try again")
 
 def main():
 
@@ -30,8 +35,8 @@ def main():
         print(f"[{i}]\t{d.mountpoint}")
 
     # Get drive we'll be writing our results to, or just bail
-    input_disk_idx = prompt(msg="Select (from above numbers) which drive to write paired images to",
-                                opts = "0 to "+str(drive_list_cnt))
+    input_disk_idx = prompt(msg ="Select (from above numbers) which drive to write paired images to",
+                            opts="0 to "+str(drive_list_cnt))
 
     if not input_disk_idx or int(input_disk_idx) > drive_list_cnt:
         prompt(msg        = f"Error: You must select a write drive (between 0 and {drive_list_cnt})",
@@ -49,6 +54,11 @@ def main():
     # Create output dir if it doesn't already exist
     if not os.path.isdir(write_dir):
         os.makedirs(write_dir)
+
+    elif len(os.listdir(write_dir)) > 1:
+        prompt(msg=f"WARNING: '{write_dir}' already contains files - "+
+                   "are you sure you want overwrite these?",
+               opts="Enter to continue")
 
     # Init our simple report class (will write operation results to this file)
     r = Report(os.path.join(write_dir, "REPORT.log"))
@@ -75,22 +85,64 @@ def main():
     #
     # XXX Investigate: Is meta-data lost in copy operation ?
     #
+
+    #
+    # XXX BUG: Will overwrite files of the same name
+    #   Prompt? Warn? What do?
+    #
     for jpg, nef in photo_pairs:
 
-        jpg_file_name = jpg.split(os.sep)[-1]
-        nef_file_name = nef.split(os.sep)[-1]
+        try:
+            result = safe_copy(jpg, write_dir)
+            r.write_line(result)
+        except Exception as e:
+            r.write_line(str(e))
 
-        shutil.copy(jpg, write_dir)
-        op_str = f"copied '{jpg}' to '{write_dir+os.sep+jpg_file_name}'"
-        r.write_line(op_str)
+        result = ''
 
-        shutil.copy(nef, write_dir)
-        op_str = f"copied '{nef}' to '{write_dir+os.sep+nef_file_name}'"
-        r.write_line(op_str)
+        try:
+            result = safe_copy(nef, write_dir)
+            r.write_line(result)
+        except Exception as e:
+            r.write_line(str(e))
+
 
     # All done - notify and exit
     prompt(msg="Done.", opts="Enter to exit")
     r.write_line(f"Program terminated normally\n"+("-"*80))
+
+def safe_copy(src, dst):
+    """ Check if :dst: dir already had a file which matches :src:'s file name
+    Returns a report string of the operation performed. """
+
+    # Sentinal to detect whether we've overwritten a file
+    overwrite = False
+
+    # Grab source file name
+    src_file = src.split(os.sep)[-1]
+
+    # Basic checks to ensure this is a valid operation
+    if not os.path.isfile(src):
+        raise Exception(f"'{src}' is not a file")
+    if not os.path.isdir(dst):
+        raise Exception(f"'{dst}' is not a directory")
+
+    # Check if file of this name exists at destination
+    if os.path.isfile(os.path.join(dst, src_file)):
+        #raise Exception(f"File named {src_file} already exists in {dst}")
+        overwrite = True
+
+    shutil.copy(src, dst)
+
+    op_str = str(right_pad(f"copied '{src}'", padding=80)
+                 + right_pad("to", padding=4)
+                 + right_pad(f"'{dst+os.sep+src_file}'", padding=10))
+
+    # Notify if we've overwritten a file
+    if overwrite:
+        op_str += " (OVERWRITTEN)"
+
+    return op_str
 
 def prompt(msg, opts, exit_after=False):
     """ Print :msg: and input :opts: to terminal, and optionally :after_after: user input received """
@@ -102,6 +154,15 @@ def prompt(msg, opts, exit_after=False):
         exit(1)
 
     return user_input
+
+def right_pad(s='', padding=20, padding_char=' '):
+    """ Returns the given :s:tr, padded on the right by 0 to [padding] [padding_char] chars """
+    padded_str = s  # Safe default in case of 0, or negative padding
+    for i in range(len(s), padding):
+        padded_str += padding_char
+
+    return padded_str
+
 
 class PhotoDrive():
     def __init__(self, args):
