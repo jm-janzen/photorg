@@ -46,6 +46,10 @@ def main():
                              "out",
                              pd.root_dir.split(os.sep)[-1])
 
+    # Create output dir if it doesn't already exist
+    if not os.path.isdir(write_dir):
+        os.makedirs(write_dir)
+
     # Init our simple report class (will write operation results to this file)
     r = Report(os.path.join(write_dir, "REPORT.log"))
     r.write_line(f"Input  Directory: {base_read_path} (looking for pairs here)")
@@ -67,10 +71,6 @@ def main():
 
     prompt(msg="Ready to start copying over files",
            opts="Enter to proceed")
-
-    # Create output dir if it doesn't already exist
-    if not os.path.isdir(write_dir):
-        os.makedirs(write_dir)
 
     #
     # XXX Investigate: Is meta-data lost in copy operation ?
