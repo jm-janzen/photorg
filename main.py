@@ -138,6 +138,7 @@ class PhotoDrive():
         """ Collect and return all JPG and NEF file paths from root_dir """
         jpg_pat = re.compile(".*\.JPE?G", flags=re.IGNORECASE)
         nef_pat = re.compile(".*\.NEF", flags=re.IGNORECASE)
+        xmp_pat = re.compile(".*\.XMP", flags=re.IGNORECASE)
         jpgs    = []
         nefs    = []
         for root, dirs, files in os.walk(self.root_dir):
@@ -151,6 +152,10 @@ class PhotoDrive():
                 elif nef_pat.match(file):
                     nefs.append(file_path)
 
+                elif xmp_pat.match(file):  # Ignore XMP files without warning
+                    pass
+
+                # Something that isn't a JPG, NEF, or XMP file - sounds the alarm!
                 else:
                     print(f"Unknown file type: '{file_path}' - ignoring ...")
 
